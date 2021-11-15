@@ -17,6 +17,9 @@ type Publisher interface {
 	// PublishEvent publish the given event
 	PublishEvent(event Event) error
 
+	// PublishRaw publish given RawMessage into given exchange
+	PublishRaw(exchange string, msg *RawMessage) error
+
 	// Close the underlying connection gracefully
 	Close() error
 }
@@ -46,6 +49,10 @@ func (p *publisher) PublishEvent(event Event) error {
 	return publishEvent(p.channel, event)
 }
 
+func (p *publisher) PublishRaw(exchange string, msg *RawMessage) error {
+	return publishRaw(p.channel, exchange, msg)
+}
+
 func (p *publisher) Close() error {
 	return p.channel.Close()
 }
@@ -56,9 +63,14 @@ func publishEvent(ch *amqp.Channel, event Event) error {
 		return fmt.Errorf("error while encoding event: %s", err)
 	}
 
-	return ch.Publish(event.Exchange(), "", false, false, amqp.Publishing{
+	return publishRaw(ch, event.Exchange(), &RawMessage{Body: evtBytes})
+}
+
+func publishRaw(ch *amqp.Channel, exchange string, raw *RawMessage) error {
+	return ch.Publish(exchange, "", false, false, amqp.Publishing{
 		ContentType:  "application/json",
-		Body:         evtBytes,
+		Body:         raw.Body,
+		Headers:      raw.Headers,
 		DeliveryMode: amqp.Persistent,
 	})
 }

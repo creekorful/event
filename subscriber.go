@@ -54,6 +54,10 @@ func (s *subscriber) PublishEvent(event Event) error {
 	return publishEvent(s.channel, event)
 }
 
+func (s *subscriber) PublishRaw(exchange string, msg *RawMessage) error {
+	return publishRaw(s.channel, exchange, msg)
+}
+
 func (s *subscriber) Close() error {
 	if s.tag != "" {
 		// close the deliveries chan
