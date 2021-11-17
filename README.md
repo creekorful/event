@@ -1,4 +1,4 @@
-# event
+# goevent
 
 Go library to build event driven applications easily using AMQP as a backend.
 
