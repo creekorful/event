@@ -1,4 +1,4 @@
-package event
+package goevent
 
 // Event represent a event
 type Event interface {

@@ -1,4 +1,4 @@
-package event
+package goevent
 
 import (
 	"encoding/json"

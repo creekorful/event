@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/creekorful/event"
+	"github.com/creekorful/goevent"
 	"log"
 	"os"
 )

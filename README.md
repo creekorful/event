@@ -8,7 +8,7 @@ Go library to build event driven applications easily using AMQP as a backend.
 package main
 
 import (
-	"github.com/creekorful/event"
+	"github.com/creekorful/goevent"
 	"log"
 	"os"
 )
@@ -40,7 +40,7 @@ func main() {
 package main
 
 import (
-	"github.com/creekorful/event"
+	"github.com/creekorful/goevent"
 	"log"
 	"os"
 	"os/signal"
