@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/streadway/amqp"
-	"math/rand"
+	"sync"
 )
 
 // Handler represent an event handler
@@ -18,16 +18,17 @@ type Subscriber interface {
 	Read(msg *RawMessage, event Event) error
 
 	// Subscribe to named exchange with unique consuming guaranty
-	Subscribe(exchange, queue string, handler Handler) error
+	Subscribe(exchange, queue, subscriptionId string, handler Handler) error
 
 	// SubscribeAll subscribe to given exchange but ensure everyone on the exchange receive the messages
-	SubscribeAll(exchange string, handler Handler) error
+	SubscribeAll(exchange, subscriptionId string, handler Handler) error
 }
 
 // Subscriber represent a subscriber
 type subscriber struct {
-	channel *amqp.Channel
-	tag     string
+	channel            *amqp.Channel
+	subscriptions      map[string]struct{}
+	subscriptionsMutex sync.Mutex
 }
 
 // NewSubscriber create a new subscriber and connect it to given server
@@ -46,7 +47,8 @@ func NewSubscriber(amqpURI string, prefetch int) (Subscriber, error) {
 	}
 
 	return &subscriber{
-		channel: c,
+		channel:       c,
+		subscriptions: map[string]struct{}{},
 	}, nil
 }
 
@@ -59,9 +61,9 @@ func (s *subscriber) PublishRaw(exchange string, msg *RawMessage) error {
 }
 
 func (s *subscriber) Close() error {
-	if s.tag != "" {
+	for subscription := range s.subscriptions {
 		// close the deliveries chan
-		_ = s.channel.Cancel(s.tag, false)
+		_ = s.channel.Cancel(subscription, false)
 	}
 
 	return s.channel.Close()
@@ -75,7 +77,7 @@ func (s *subscriber) Read(msg *RawMessage, event Event) error {
 	return nil
 }
 
-func (s *subscriber) Subscribe(exchange, queue string, handler Handler) error {
+func (s *subscriber) Subscribe(exchange, queue, subscriptionId string, handler Handler) error {
 	// First declare the exchange
 	if err := s.channel.ExchangeDeclare(exchange, amqp.ExchangeFanout, true, false, false, false, nil); err != nil {
 		return err
@@ -92,13 +94,21 @@ func (s *subscriber) Subscribe(exchange, queue string, handler Handler) error {
 		return err
 	}
 
-	s.tag = uniqueConsumerTag(queue)
+	// Validate and append the new subscription
+	s.subscriptionsMutex.Lock()
+	defer s.subscriptionsMutex.Unlock()
+
+	if _, exists := s.subscriptions[subscriptionId]; exists {
+		return fmt.Errorf("a subscription already exists with id %s", subscriptionId)
+	}
 
 	// Start consuming asynchronously
-	deliveries, err := s.channel.Consume(q.Name, s.tag, false, false, false, false, nil)
+	deliveries, err := s.channel.Consume(q.Name, subscriptionId, false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
+
+	s.subscriptions[subscriptionId] = struct{}{}
 
 	go func() {
 		for delivery := range deliveries {
@@ -117,7 +127,7 @@ func (s *subscriber) Subscribe(exchange, queue string, handler Handler) error {
 	return nil
 }
 
-func (s *subscriber) SubscribeAll(exchange string, handler Handler) error {
+func (s *subscriber) SubscribeAll(exchange, subscriptionId string, handler Handler) error {
 	// First declare the exchange
 	if err := s.channel.ExchangeDeclare(exchange, amqp.ExchangeFanout, true, false, false, false, nil); err != nil {
 		return err
@@ -134,11 +144,21 @@ func (s *subscriber) SubscribeAll(exchange string, handler Handler) error {
 		return err
 	}
 
+	// Validate and append the new subscription
+	s.subscriptionsMutex.Lock()
+	defer s.subscriptionsMutex.Unlock()
+
+	if _, exists := s.subscriptions[subscriptionId]; exists {
+		return fmt.Errorf("a subscription already exists with id %s", subscriptionId)
+	}
+
 	// Start consuming asynchronously
-	deliveries, err := s.channel.Consume(q.Name, "", false, false, false, false, nil)
+	deliveries, err := s.channel.Consume(q.Name, subscriptionId, false, false, false, false, nil)
 	if err != nil {
 		return err
 	}
+
+	s.subscriptions[subscriptionId] = struct{}{}
 
 	go func() {
 		for delivery := range deliveries {
@@ -155,8 +175,4 @@ func (s *subscriber) SubscribeAll(exchange string, handler Handler) error {
 	}()
 
 	return nil
-}
-
-func uniqueConsumerTag(prefix string) string {
-	return fmt.Sprintf("%s-%d", prefix, rand.Int63())
 }

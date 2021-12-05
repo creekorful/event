@@ -15,7 +15,7 @@ func (evt *GreetingsEvent) Exchange() string {
 }
 
 func main() {
-	pub, err := event.NewPublisher(os.Getenv("PUBLISHER_URI"))
+	pub, err := goevent.NewPublisher(os.Getenv("PUBLISHER_URI"))
 	if err != nil {
 		log.Fatal(err)
 	}

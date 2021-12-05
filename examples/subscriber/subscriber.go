@@ -17,12 +17,12 @@ func (evt *GreetingsEvent) Exchange() string {
 }
 
 func main() {
-	sub, err := event.NewSubscriber(os.Getenv("SUBSCRIBER_URI"), 1)
+	sub, err := goevent.NewSubscriber(os.Getenv("SUBSCRIBER_URI"), 1)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if err := sub.Subscribe("greetings", "greetingQueue", greetingsHandler); err != nil {
+	if err := sub.Subscribe("greetings", "greetingQueue", "", greetingsHandler); err != nil {
 		log.Fatal(err)
 	}
 
@@ -42,7 +42,7 @@ func main() {
 	}
 }
 
-func greetingsHandler(sub event.Subscriber, msg *event.RawMessage) error {
+func greetingsHandler(sub goevent.Subscriber, msg *goevent.RawMessage) error {
 	var evt GreetingsEvent
 
 	if err := sub.Read(msg, &evt); err != nil {
